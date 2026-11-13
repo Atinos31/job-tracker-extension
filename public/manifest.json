@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Job Tracker",
+  "version": "0.1.0",
+  "description": "Track your job applications and export proof of effort.",
+  "action": { "default_popup": "popup.html" },
+  "permissions": ["storage", "activeTab"]
+}
