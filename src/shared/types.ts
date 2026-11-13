@@ -16,3 +16,12 @@ export interface Application {
   dateApplied: string // YYYY-MM-DD
   notes: string
 }
+
+export const STATUS_LABELS: Record<Status, string> = {
+  saved: 'Saved',
+  applied: 'Applied',
+  interview: 'Interview',
+  offer: 'Offer',
+  rejected: 'Rejected',
+  no_reply: 'No reply',
+}

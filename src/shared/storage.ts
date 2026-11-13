@@ -7,7 +7,24 @@ export async function getApplications(): Promise<Application[]> {
   return (result[KEY] as Application[] | undefined) ?? []
 }
 
+async function saveAll(all: Application[]): Promise<void> {
+  await chrome.storage.local.set({ [KEY]: all })
+}
+
 export async function addApplication(app: Application): Promise<void> {
   const all = await getApplications()
-  await chrome.storage.local.set({ [KEY]: [app, ...all] })
+  await saveAll([app, ...all])
+}
+
+export async function updateApplication(
+  id: string,
+  changes: Partial<Application>
+): Promise<void> {
+  const all = await getApplications()
+  await saveAll(all.map((a) => (a.id === id ? { ...a, ...changes } : a)))
+}
+
+export async function deleteApplication(id: string): Promise<void> {
+  const all = await getApplications()
+  await saveAll(all.filter((a) => a.id !== id))
 }

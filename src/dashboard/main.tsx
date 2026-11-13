@@ -1,5 +1,4 @@
 import { createRoot } from 'react-dom/client'
+import Dashboard from './Dashboard'
 
-createRoot(document.getElementById('root')!).render(
-  <h1>Job Tracker dashboard works ✅</h1>
-)
+createRoot(document.getElementById('root')!).render(<Dashboard />)
