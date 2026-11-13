@@ -1,75 +1,32 @@
-# React + TypeScript + Vite
+# Job Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A local-first Chrome extension for saving job listings, tracking application progress and follow-ups, and exporting your records.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Save a job from the current page with best-effort title and company extraction. All details remain editable.
+- Track saved and applied dates, status changes, follow-up dates, next actions, and notes.
+- Search and filter applications, see follow-ups due in the next seven days, and edit records in the dashboard.
+- Open a Gmail search for an application's company and role without granting the extension inbox access.
+- Export the filtered list as CSV, create a JSON backup, or merge records from a backup.
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Install dependencies with `npm install`.
+2. Build the extension with `npm run build`.
+3. In Chrome, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**.
+4. Select this project's `dist` directory.
 
-## Expanding the ESLint configuration
+After making code changes, rebuild and reload the extension from `chrome://extensions`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Data and privacy
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Application records are stored in the browser's `chrome.storage.local`. The extension does not send records to a server. Page details are read only for the active tab when you open the extension popup, using the `activeTab` and `scripting` permissions. Restricted browser pages may not allow extraction; you can still enter the details manually.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Use **Download backup** to save a JSON copy of your records. **Import backup** validates the file and merges new records without replacing existing ones; entries with a matching ID or job URL are skipped. Keep backups somewhere safe, since they may contain private job-search information.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Development
 
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+- `npm run dev` starts the Vite development server.
+- `npm run build` type-checks and builds the extension.
+- `npm run lint` runs ESLint.

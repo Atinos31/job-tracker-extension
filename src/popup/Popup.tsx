@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { addApplication } from '../shared/storage'
-import type { Status } from '../shared/types'
+import type { Application, Status } from '../shared/types'
 
-const today = () => new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD, local time
+const today = () => new Date().toLocaleDateString('sv-SE')
 
 const field: React.CSSProperties = {
   width: '100%',
@@ -11,50 +11,155 @@ const field: React.CSSProperties = {
   marginBottom: 8,
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'An unexpected error occurred.'
+}
+
+function extractJobDetails(): { role: string; company: string } {
+  type Posting = { title?: string; company?: string }
+
+  const findPosting = (value: unknown): Posting | undefined => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findPosting(item)
+        if (found) return found
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      const record = value as Record<string, unknown>
+      const type = record['@type']
+      if (
+        ((typeof type === 'string' && type.endsWith('JobPosting')) ||
+          (Array.isArray(type) && type.some((entry) => typeof entry === 'string' && entry.endsWith('JobPosting')))) &&
+        typeof record.title === 'string'
+      ) {
+        const organization = record.hiringOrganization
+        return {
+          title: record.title,
+          company:
+            typeof organization === 'object' &&
+            organization !== null &&
+            'name' in organization &&
+            typeof organization.name === 'string'
+              ? organization.name
+              : undefined,
+        }
+      }
+      return findPosting(record['@graph'])
+    }
+    return undefined
+  }
+
+  let posting: Posting | undefined
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      posting = findPosting(JSON.parse(script.textContent ?? '') as unknown)
+    } catch {
+      continue
+    }
+    if (posting) break
+  }
+
+  const meta = (selector: string) =>
+    document.querySelector<HTMLMetaElement>(selector)?.content?.trim() ?? ''
+  const role =
+    posting?.title ||
+    document.querySelector('h1')?.textContent?.trim() ||
+    meta('meta[property="og:title"]') ||
+    document.title
+
+  return {
+    role,
+    company: posting?.company || '',
+  }
+}
+
 export default function Popup() {
   const [role, setRole] = useState('')
   const [company, setCompany] = useState('')
   const [url, setUrl] = useState('')
   const [status, setStatus] = useState<Status>('applied')
-  const [date, setDate] = useState(today())
+  const [dateApplied, setDateApplied] = useState(today())
+  const [followUpDate, setFollowUpDate] = useState('')
+  const [nextAction, setNextAction] = useState('')
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [duplicate, setDuplicate] = useState(false)
+  const [message, setMessage] = useState('')
+  const [id] = useState(() => crypto.randomUUID())
 
   useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      setRole(tab?.title ?? '')
-      setUrl(tab?.url ?? '')
-    })
+    async function loadTab() {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        setRole(tab?.title ?? '')
+        setUrl(tab?.url ?? '')
+        if (tab?.id === undefined) return
+
+        const [injection] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractJobDetails,
+        })
+        if (injection?.result) {
+          if (injection.result.role) setRole(injection.result.role)
+          if (injection.result.company) setCompany(injection.result.company)
+        }
+      } catch {
+        setMessage('Could not read this page automatically. You can still enter the details.')
+      }
+    }
+
+    void loadTab()
   }, [])
 
-  async function save() {
-    let source = ''
-    try {
-      source = new URL(url).hostname.replace('www.', '')
-    } catch {
-      source = ''
-    }
-    await addApplication({
-      id: crypto.randomUUID(),
-      role,
-      company,
+  async function save(allowDuplicate = false) {
+    setSaving(true)
+    setMessage('')
+    const application: Application = {
+      id,
+      role: role.trim(),
+      company: company.trim(),
       url,
-      source,
+      source: (() => {
+        try {
+          return new URL(url).hostname.replace(/^www\./, '')
+        } catch {
+          return ''
+        }
+      })(),
       status,
-      dateApplied: date,
-      notes,
-    })
-    setSaved(true)
+      dateSaved: today(),
+      dateApplied: status === 'saved' ? null : dateApplied,
+      followUpDate,
+      nextAction: nextAction.trim(),
+      notes: notes.trim(),
+      statusHistory: [{ status, changedAt: new Date().toISOString() }],
+    }
+
+    try {
+      const existing = await addApplication(application, allowDuplicate)
+      if (existing) {
+        setDuplicate(true)
+        setMessage(`A similar application already exists: ${existing.role} at ${existing.company}.`)
+      } else {
+        setSaved(true)
+        setDuplicate(false)
+      }
+    } catch (reason) {
+      setMessage(`Could not save this application: ${getErrorMessage(reason)}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function openDashboard() {
-    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') })
+    void chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') })
   }
 
   if (saved) {
     return (
       <div style={{ padding: 12 }}>
-        <h3>Saved ✅</h3>
+        <h3>Saved</h3>
         <button onClick={openDashboard}>Open dashboard</button>
       </div>
     )
@@ -73,9 +178,32 @@ export default function Popup() {
         <option value="rejected">Rejected</option>
         <option value="no_reply">No reply</option>
       </select>
-      <input style={field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {status !== 'saved' && (
+        <label style={{ display: 'block' }}>
+          Date applied
+          <input style={field} type="date" value={dateApplied} onChange={(e) => setDateApplied(e.target.value)} />
+        </label>
+      )}
+      <label style={{ display: 'block' }}>
+        Follow-up date
+        <input style={field} type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} />
+      </label>
+      <input
+        style={field}
+        placeholder="Next action (e.g. email recruiter)"
+        value={nextAction}
+        onChange={(e) => setNextAction(e.target.value)}
+      />
       <textarea style={field} placeholder="Notes (contact, salary, next step...)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <button onClick={save} disabled={!role.trim()}>Save</button>{' '}
+      {message && <p role="status">{message}</p>}
+      <button onClick={() => void save()} disabled={!role.trim() || saving}>
+        {saving ? 'Saving…' : 'Save'}
+      </button>{' '}
+      {duplicate && (
+        <button onClick={() => void save(true)} disabled={saving}>
+          Save duplicate anyway
+        </button>
+      )}{' '}
       <button onClick={openDashboard}>Dashboard</button>
     </div>
   )

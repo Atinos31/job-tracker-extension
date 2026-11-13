@@ -13,8 +13,17 @@ export interface Application {
   url: string
   source: string
   status: Status
-  dateApplied: string // YYYY-MM-DD
+  dateSaved: string
+  dateApplied: string | null
+  followUpDate: string
+  nextAction: string
   notes: string
+  statusHistory: StatusChange[]
+}
+
+export interface StatusChange {
+  status: Status
+  changedAt: string
 }
 
 export const STATUS_LABELS: Record<Status, string> = {
